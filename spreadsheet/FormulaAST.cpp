@@ -1,4 +1,5 @@
 #include "FormulaAST.h"
+#include "cell.h"
 
 #include "FormulaBaseListener.h"
 #include "FormulaLexer.h"
@@ -9,6 +10,7 @@
 #include <memory>
 #include <optional>
 #include <sstream>
+#include <map>
 
 namespace ASTImpl {
 
@@ -67,12 +69,13 @@ constexpr PrecedenceRule PRECEDENCE_RULES[EP_END][EP_END] = {
     /* EP_ATOM */ {PR_NONE, PR_NONE, PR_NONE, PR_NONE, PR_NONE, PR_NONE},
 };
 
+using REF_MAP = std::map <Position, const CellInterface*>;
 class Expr {
 public:
     virtual ~Expr() = default;
     virtual void Print(std::ostream& out) const = 0;
     virtual void DoPrintFormula(std::ostream& out, ExprPrecedence precedence) const = 0;
-    virtual double Evaluate(/*добавьте сюда нужные аргументы*/ args) const = 0;
+    virtual double Evaluate(const REF_MAP& pos_to_cells) const = 0;
 
     // higher is tighter
     virtual ExprPrecedence GetPrecedence() const = 0;
@@ -142,10 +145,31 @@ public:
         }
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/) const override {
-			// Скопируйте ваше решение из предыдущих уроков.
+    double Evaluate(const REF_MAP& pos_to_cells) const override {
+        double res;
+        switch (type_)
+        {
+        case Type::Add:
+            res = lhs_->Evaluate(pos_to_cells) + rhs_->Evaluate(pos_to_cells);
+            break;
+        case Type::Subtract:
+            res = lhs_->Evaluate(pos_to_cells) - rhs_->Evaluate(pos_to_cells);
+            break;
+        case Type::Multiply:
+            res = lhs_->Evaluate(pos_to_cells) * rhs_->Evaluate(pos_to_cells);
+            break;
+        case Type::Divide:
+            res = lhs_->Evaluate(pos_to_cells) / rhs_->Evaluate(pos_to_cells);
+            break;
+        default:
+            break;
+        }
+        if (!std::isfinite(res))
+        {
+            throw FormulaError(FormulaError::Category::Arithmetic);
+        }
+        return res;
     }
-
 private:
     Type type_;
     std::unique_ptr<Expr> lhs_;
@@ -180,8 +204,16 @@ public:
         return EP_UNARY;
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/ args) const override {
+    double Evaluate(const REF_MAP& pos_to_cells) const override {
         // Скопируйте ваше решение из предыдущих уроков.
+        if (type_ == Type::UnaryMinus)
+        {
+            return (-1.) * operand_->Evaluate(pos_to_cells);
+        }
+        else
+        {
+            return operand_->Evaluate(pos_to_cells);
+        }
     }
 
 private:
@@ -211,10 +243,54 @@ public:
         return EP_ATOM;
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/ args) const override {
-        // реализуйте метод.
-    }
+    double Evaluate(const REF_MAP& pos_to_cells) const override {
+        // реализуйте метод.        
+        if (!cell_->IsValid())
+        {
+            throw FormulaError(FormulaError::Category::Ref);
+        }
 
+        const CellInterface* cell = pos_to_cells.at(*cell_);
+        if (!cell)
+        {
+            return 0;
+        }
+
+        CellInterface::Value res = cell->GetValue(); 
+        
+        if (std::holds_alternative<FormulaError>(res))
+        {            
+            throw std::get<FormulaError>(res);
+        }  
+        
+        if (std::holds_alternative<double>(res))
+        {            
+            return std::get<double>(res);
+        } 
+
+        std::string s = std::get<std::string>(res);
+        
+        if(s == "")
+        {
+            return 0;
+        }
+
+        size_t sz;
+        double d;
+        try
+        {
+            d = std::stod(s, &sz);
+        }
+        catch (...)
+        {
+            throw FormulaError(FormulaError::Category::Value);
+        }
+        if (sz == s.size())
+        {
+            return d;
+        }
+        throw FormulaError(FormulaError::Category::Value);                 
+    }
 private:
     const Position* cell_;
 };
@@ -237,7 +313,7 @@ public:
         return EP_ATOM;
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/ args) const override {
+    double Evaluate(const REF_MAP&) const override {         
         return value_;
     }
 
@@ -377,6 +453,7 @@ FormulaAST ParseFormulaAST(const std::string& in_str) {
     return ParseFormulaAST(in);
 }
 
+
 void FormulaAST::PrintCells(std::ostream& out) const {
     for (auto cell : cells_) {
         out << cell.ToString() << ' ';
@@ -391,8 +468,13 @@ void FormulaAST::PrintFormula(std::ostream& out) const {
     root_expr_->PrintFormula(out, ASTImpl::EP_ATOM);
 }
 
-double FormulaAST::Execute(/*добавьте нужные аргументы*/ args) const {
-    return root_expr_->Evaluate(/*добавьте нужные аргументы*/ args);
+double FormulaAST::Execute(const SheetInterface& sheet) const {
+    ASTImpl::REF_MAP pos_to_cells;   
+    for (Position pos : cells_)
+    {        
+        pos_to_cells.insert({ pos,sheet.GetCell(pos) });
+    }    
+    return root_expr_->Evaluate(pos_to_cells);
 }
 
 FormulaAST::FormulaAST(std::unique_ptr<ASTImpl::Expr> root_expr, std::forward_list<Position> cells)
