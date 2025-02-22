@@ -32,7 +32,7 @@ void Cell::Set(std::string text)
 				const_cast<SheetInterface&>(sheet_).SetCell(pos, "");
 				cell = (Cell*)sheet_.GetCell(pos);
 			}
-			cell->CheckCircs(this);
+			cell->CheckCircularRefs(this);
 			cell->AddBackRef(this);
 		}
 	}
@@ -47,7 +47,7 @@ void Cell::Set(std::string text)
 	}
 	for (Cell* cell : back_refs_)
 	{
-		cell->Invalidate();
+		cell->InvalidateCache();
 	}
 	std::swap(cell_ptr_, new_ptr);
 	delete new_ptr;
@@ -78,14 +78,14 @@ void Cell::RemoveBackRef(Cell* ref)
 	back_refs_.erase(ref);
 }
 
-void Cell::Invalidate() 
+void Cell::InvalidateCache() 
 {
 	if (cell_ptr_->IsValid())
 	{
-		cell_ptr_->Invalidate();
+		cell_ptr_->InvalidateCache();
 		for (auto cell : back_refs_)
 		{
-			cell->Invalidate();
+			cell->InvalidateCache();
 		}
 	}
 }
@@ -95,7 +95,7 @@ std::vector<Position> Cell::GetReferencedCells() const
 	return cell_ptr_->GetRefs();
 }
 
-void Cell::CheckCircs(Cell* token)
+void Cell::CheckCircularRefs(Cell* token)
 {
 	if (token == this)
 	{
@@ -103,7 +103,7 @@ void Cell::CheckCircs(Cell* token)
 	}
 	for (Position pos : GetReferencedCells())
 	{
-		((Cell*)sheet_.GetCell(pos))->CheckCircs(token);
+		((Cell*)sheet_.GetCell(pos))->CheckCircularRefs(token);
 	}		
 }
 
@@ -112,7 +112,7 @@ bool CellT::IsValid() const
 	return is_valid_;;
 }
 
-void CellT::Invalidate()
+void CellT::InvalidateCache()
 {
 	is_valid_ = false;
 }

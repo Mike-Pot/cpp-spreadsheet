@@ -146,20 +146,22 @@ public:
     }
 
     double Evaluate(const REF_MAP& pos_to_cells) const override {
+        double lhs_res = lhs_->Evaluate(pos_to_cells);
+        double rhs_res = rhs_->Evaluate(pos_to_cells);
         double res;
         switch (type_)
         {
         case Type::Add:
-            res = lhs_->Evaluate(pos_to_cells) + rhs_->Evaluate(pos_to_cells);
+            res = lhs_res + rhs_res;           
             break;
         case Type::Subtract:
-            res = lhs_->Evaluate(pos_to_cells) - rhs_->Evaluate(pos_to_cells);
+            res = lhs_res - rhs_res;           
             break;
         case Type::Multiply:
-            res = lhs_->Evaluate(pos_to_cells) * rhs_->Evaluate(pos_to_cells);
+            res = lhs_res * rhs_res;
             break;
         case Type::Divide:
-            res = lhs_->Evaluate(pos_to_cells) / rhs_->Evaluate(pos_to_cells);
+            res = lhs_res / rhs_res;          
             break;
         default:
             break;
@@ -206,14 +208,8 @@ public:
 
     double Evaluate(const REF_MAP& pos_to_cells) const override {
         // Скопируйте ваше решение из предыдущих уроков.
-        if (type_ == Type::UnaryMinus)
-        {
-            return (-1.) * operand_->Evaluate(pos_to_cells);
-        }
-        else
-        {
-            return operand_->Evaluate(pos_to_cells);
-        }
+        double op_val = operand_->Evaluate(pos_to_cells);
+        return (type_ == UnaryMinus) ? (-1.) * op_val : op_val;        
     }
 
 private:

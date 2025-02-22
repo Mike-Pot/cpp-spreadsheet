@@ -22,8 +22,8 @@ public:
 
     void AddBackRef(Cell* ref);
     void RemoveBackRef(Cell* ref);
-    void Invalidate();     
-    void CheckCircs(Cell* token);
+    void InvalidateCache();     
+    void CheckCircularRefs(Cell* token);
     
 private:    
     CellT* cell_ptr_ = nullptr;
@@ -41,7 +41,7 @@ public:
     virtual Cell::Value GetVal(const  SheetInterface& sheet) const = 0;
 
     bool IsValid() const;
-    void Invalidate();   
+    void InvalidateCache();   
     const std::vector<Position>& GetRefs() const;
     
 protected: 
